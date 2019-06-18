@@ -47,11 +47,11 @@ class Hyperband:
             using the amount of specified resources.
 
         R: The maximum resources allocated to any hyperparameter configuration. Must be
-            greater than 1.0.
+            greater than or equal to 1.0.
 
         eta: A factor controlling the poportion of hyperparameter configurations to cull
             in each iteration of SuccessiveHalving. The optimal value is e (2.718...),
-            typical values are 3 or 4. Must be nonnegative.
+            typical values are 3 or 4. Must be strictly positive.
 
     Raises:
         ValueError: if R is less than 1.0, or if eta is not strictly positive.
@@ -69,11 +69,11 @@ class Hyperband:
         self.run_then_return_val_loss = run_then_return_val_loss
 
         if R < 1.0:
-            raise ValueError("R is {0:.2f}, but it must be greater than 1.0.".format(R))
+            raise ValueError("R is {0:.2f}, but it must be >= 1.0.".format(R))
         self.R = R
 
         if eta <= 0.0:
-            raise ValueError("eta is {0:.2f}, but it must be strictly positive.")
+            raise ValueError("eta is {0:.2f}, but it must be > 0.".format(eta))
         self.eta = eta
 
         self.s_max = math.floor(math.log(self.R, self.eta))
