@@ -11,7 +11,7 @@ Date: 2019-06-17
 import heapq
 import math
 import typing
-from typing import Callable, Generator, Iterable, Tuple, TypeVar
+from typing import Any, Callable, Generator, Sequence, Tuple, TypeVar
 
 Config = TypeVar("Config")
 """A generic type variable representing a hyperparameter configuration."""
@@ -20,17 +20,17 @@ Config = TypeVar("Config")
 class ConfigEvaluation(typing.NamedTuple):
     """Contains the results of evaluating a hyperparameter configuration."""
 
-    config: Config
+    config: Any  # Using the Config generic causes a metaclass conflict before py37
     loss: float
 
 
 def _top_k(
-    configs: Iterable[Config], losses: Iterable[float], k: int
-) -> Tuple[Tuple[Config, float]]:
+    configs: Sequence[Config], losses: Sequence[float], k: int
+) -> Tuple[Tuple[Config, ...], Tuple[float, ...]]:
     """Returns the k configs with the best (lowest) losses."""
     assert k >= 1
     losses, configs = zip(*heapq.nsmallest(k, zip(losses, configs)))
-    return (configs, losses)
+    return configs, losses
 
 
 class Hyperband:
@@ -60,7 +60,7 @@ class Hyperband:
 
     def __init__(
         self,
-        get_hyperparameter_configuration: Callable[[int], Iterable[Config]],
+        get_hyperparameter_configuration: Callable[[int], Sequence[Config]],
         run_then_return_val_loss: Callable[[Config, float], float],
         R: float,
         eta: float = 3.0,
@@ -102,7 +102,7 @@ class Hyperband:
             if best_config is None or losses[0] < best_config.loss:
                 best_config = ConfigEvaluation(T[0], losses[0])
 
-            yield best_config
+            yield best_config  # type: ignore
 
     def run(self) -> ConfigEvaluation:
         """Runs Hyperband and returns the best config.
