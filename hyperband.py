@@ -80,7 +80,7 @@ class Hyperband:
         self.B = (self.s_max + 1) * self.R
 
     def step_generator(self) -> Generator[ConfigEvaluation, None, None]:
-        """Returns a generator that takes steps of HyperBand.
+        """Returns a generator that takes steps of Hyperband.
 
         On each step, it will run one bracket of SuccessiveHalving and yield a named
         tuple `(config, loss)` containing the best hyperparameter config seen so far, and
