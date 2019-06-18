@@ -24,7 +24,7 @@ def run_then_return_val_loss(config: Config, resources: float) -> float:
     will be more precise.
 
     """
-    loss = random.normalvariate(config.rho ** 2, 1.0 / resources)
+    loss = random.normalvariate(config.rho ** 2, 40.0 / resources)
     return loss
 
 
