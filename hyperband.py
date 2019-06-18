@@ -11,7 +11,7 @@ Date: 2019-06-17
 import heapq
 import math
 import typing
-from typing import Callable, Generator, Iterable, List, Optional, TypeVar
+from typing import Callable, Generator, Iterable, Tuple, TypeVar
 
 Config = TypeVar("Config")
 """A generic type variable representing a hyperparameter configuration."""
@@ -24,14 +24,17 @@ class ConfigEvaluation(typing.NamedTuple):
     loss: float
 
 
-def _top_k(configs: Iterable[Config], losses: Iterable[float], k: int) -> List[Config]:
+def _top_k(
+    configs: Iterable[Config], losses: Iterable[float], k: int
+) -> Tuple[Tuple[Config, float]]:
     """Returns the k configs with the best (lowest) losses."""
-    assert k > 0.0
-    return zip(*heapq.nsmallest(k, zip(losses, configs)))[1]
+    assert k >= 1
+    losses, configs = zip(*heapq.nsmallest(k, zip(losses, configs)))
+    return (configs, losses)
 
 
-class HyperBand:
-    """An implementation of HyperBand.
+class Hyperband:
+    """An implementation of Hyperband.
 
     Variable names follow the original paper for clarity.
 
@@ -73,8 +76,7 @@ class HyperBand:
             raise ValueError("eta is {0:.2f}, but it must be strictly positive.")
         self.eta = eta
 
-        self.best_config: Optional[Config] = None
-        self.s_max = math.floor(math.log(self.R, base=self.eta))
+        self.s_max = math.floor(math.log(self.R, self.eta))
         self.B = (self.s_max + 1) * self.R
 
     def step_generator(self) -> Generator[ConfigEvaluation, None, None]:
@@ -85,19 +87,22 @@ class HyperBand:
         its associated loss.
 
         """
+        best_config = None
         for s in range(self.s_max, -1, -1):
-            n = math.ceil((self.B * math.pow(self.eta, s)) / (self.R * (s + 1)))
-            r = self.R * math.pow(self.eta, -s)
+            n = math.ceil((self.B * (self.eta ** s)) / (self.R * (s + 1)))
+            r = self.R * (self.eta ** -s)
             T = self.get_hyperparameter_configuration(n)
 
             for i in range(s + 1):
-                n_i = math.floor(n * math.pow(self.eta, -i))
-                r_i = r * math.pow(self.eta, i)
+                n_i = math.floor(n * (self.eta ** -i))
+                r_i = r * (self.eta ** i)
                 L = [self.run_then_return_val_loss(t, r_i) for t in T]
-                T = _top_k(L, T, math.floor(n_i / self.eta))
+                T, losses = _top_k(T, L, max(1, math.floor(n_i / self.eta)))
 
-            self.best_config = T[0]
-            yield self.best_config
+            if best_config is None or losses[0] < best_config.loss:
+                best_config = ConfigEvaluation(T[0], losses[0])
+
+            yield best_config
 
     def run(self) -> ConfigEvaluation:
         """Runs Hyperband and returns the best config.
@@ -111,9 +116,8 @@ class HyperBand:
             mis-specification of Hyperband's parameters.
 
         """
-        generator = self.step_generator()
         best_config = None
-        for best_config in generator:
+        for best_config in self.step_generator():
             pass
 
         if best_config is None:
