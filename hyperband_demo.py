@@ -1,12 +1,20 @@
 """A quick demo of hyperband."""
-import random
-import typing
-from typing import Iterable
+# For some reason the yaml package throws a spurious warning, so let's disable it before
+# we do anything else. This requires us to disable flake8 on the subsequent imports
+import yaml
 
-import dask.distributed
-import dask_jobqueue
+yaml.warnings({"YAMLLoadWarning": False})
 
-import hyperband
+
+import argparse  # noqa: E402
+import random  # noqa: E402
+import typing  # noqa: E402
+from typing import Iterable  # noqa: E402
+
+import dask.distributed  # noqa: E402
+import dask_jobqueue  # noqa: E402
+
+import hyperband  # noqa: E402
 
 
 class Config(typing.NamedTuple):
@@ -26,8 +34,8 @@ def get_hyperparameter_configuration(n: int) -> Iterable[Config]:
 def run_then_return_val_loss(config: Config, resources: float) -> float:
     """Sample a noisy quadratic with minimum at 0.
 
-    If resources is significantly below 100, the sample will be noisy, if it is above, it
-    will be more precise.
+    If resources is significantly below 40.0, the sample will be
+    noisy, if it is above, it will be more precise.
 
     """
     loss = random.normalvariate(config.rho ** 2, 40.0 / resources)
@@ -35,8 +43,20 @@ def run_then_return_val_loss(config: Config, resources: float) -> float:
 
 
 if __name__ == "__main__":
-    use_slurm = True
-    if use_slurm:
+    parser = argparse.ArgumentParser(description="Run a hyperparameter search.")
+    parser.add_argument(
+        "--use_slurm",
+        type=bool,
+        default=False,
+        help=(
+            "set to True to use a SLURM cluster, False to run locally. If True, make"
+            + " sure you run this script with sbatch, so the scheduler is on the same "
+            + "network as the worker nodes."
+        ),
+    )
+    args = parser.parse_args()
+
+    if args.use_slurm:
         cluster = dask_jobqueue.SLURMCluster(
             cores=4,
             processes=4,
@@ -46,7 +66,9 @@ if __name__ == "__main__":
             local_directory="/tmp/",
             interfacestr="em2",
         )
-        cluster.scale(16)  # Can be 10, 100, ...
+        cluster.scale(16)  # Ask the cluster for 16 worker processes, wait until arrival
+
+        # Print a link to the HTTP diagnostics server
         print("Dashboard link: {0}".format(cluster.dashboard_link))
     else:
         cluster = dask.distributed.LocalCluster(processes=False, dashboard_address=None)
@@ -60,5 +82,6 @@ if __name__ == "__main__":
         client=client,
     )
     best_config = tuner.run()
-    print("Best config: {0}".format(best_config))
     cluster.close()
+
+    print("Best config: {0}".format(best_config))
