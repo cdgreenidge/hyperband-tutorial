@@ -27,7 +27,7 @@ class ConfigEvaluation(typing.NamedTuple):
 def _top_k(
     configs: Sequence[Config], losses: Sequence[float], k: int
 ) -> Tuple[Tuple[Config, ...], Tuple[float, ...]]:
-    """Returns the k configs with the best (lowest) losses."""
+    """Return the k configs with the best (lowest) losses."""
     assert k >= 1
     losses, configs = zip(*heapq.nsmallest(k, zip(losses, configs)))
     return configs, losses
@@ -58,7 +58,7 @@ class Hyperband:
 
     """
 
-    def __init__(
+    def __init__(  # noqa: D107
         self,
         get_hyperparameter_configuration: Callable[[int], Sequence[Config]],
         run_then_return_val_loss: Callable[[Config, float], float],
@@ -80,7 +80,7 @@ class Hyperband:
         self.B = (self.s_max + 1) * self.R
 
     def step_generator(self) -> Generator[ConfigEvaluation, None, None]:
-        """Returns a generator that takes steps of Hyperband.
+        """Return a generator that takes steps of Hyperband.
 
         On each step, it will run one bracket of SuccessiveHalving and yield a named
         tuple `(config, loss)` containing the best hyperparameter config seen so far, and
@@ -105,7 +105,7 @@ class Hyperband:
             yield best_config  # type: ignore
 
     def run(self) -> ConfigEvaluation:
-        """Runs Hyperband and returns the best config.
+        """Run Hyperband and returns the best config.
 
         Returns:
             A NamedTuple `(config, loss)` containing the best hyperparameter config and
@@ -117,7 +117,7 @@ class Hyperband:
 
         """
         best_config = None
-        for best_config in self.step_generator():
+        for best_config in self.step_generator():  # noqa: B007
             pass
 
         if best_config is None:

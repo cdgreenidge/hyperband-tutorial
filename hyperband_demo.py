@@ -13,7 +13,7 @@ class Config(typing.NamedTuple):
 
 
 def get_hyperparameter_configuration(n: int) -> Iterable[Config]:
-    """Returns an iterable of `n` random hyperparameter configurations."""
+    """Return an iterable of `n` random hyperparameter configurations."""
     return [Config(random.uniform(-100, 100)) for _ in range(n)]
 
 
@@ -21,7 +21,7 @@ resources_used = 0
 
 
 def run_then_return_val_loss(config: Config, resources: float) -> float:
-    """Samples a noisy quadratic with minimum at 0.
+    """Sample a noisy quadratic with minimum at 0.
 
     If resources is significantly below 100, the sample will be noisy, if it is above, it
     will be more precise.
