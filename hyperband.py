@@ -11,7 +11,9 @@ Date: 2019-06-17
 import heapq
 import math
 import typing
-from typing import Any, Callable, Generator, Sequence, Tuple, TypeVar
+from typing import Any, Callable, Sequence, Tuple, TypeVar, Optional
+
+import dask.distributed
 
 Config = TypeVar("Config")
 """A generic type variable representing a hyperparameter configuration."""
@@ -38,6 +40,47 @@ def _top_k(
     return configs, losses
 
 
+def successive_halving(
+    n: int,
+    r: float,
+    eta: float,
+    get_hyperparameter_configuration: Callable[[int], Sequence[Config]],
+    run_then_return_val_loss: Callable[[Config, float], float],
+) -> ConfigEvaluation:
+    """Run a bracket of successive halving.
+
+    Args:
+        n: The initial number of configurations to sample.
+        r: The minimum resource to allocate to each configuration.
+        eta: The culling factor.
+        get_hyperparameter_configuration: A function that takes a number n and returns
+            n randomly sampled hyperparameter configurations.
+        run_then_return_val_loss: A function that takes a hyperparameter configuration
+            and a resource allocation and returns the validation loss after training
+            using the amount of specified resources.
+
+    Returns:
+        A named tuple `(config, loss)` containing the configuration with the lowest loss.
+
+    """
+    T = get_hyperparameter_configuration(n)
+    s = math.floor(math.log(n, eta))
+    for i in range(s + 1):
+        n_i = math.floor(n * (eta ** -i))
+        r_i = r * (eta ** i)
+
+        client = dask.distributed.get_client()
+
+        dask.distributed.secede()
+        futures = client.map(lambda t: run_then_return_val_loss(t, r_i), T)
+        L = client.gather(futures)
+        dask.distributed.rejoin()
+
+        T, losses = _top_k(T, L, max(1, math.floor(n_i / eta)))
+
+    return ConfigEvaluation(T[0], losses[0])
+
+
 class Hyperband:
     """An implementation of Hyperband.
 
@@ -46,17 +89,16 @@ class Hyperband:
     Args:
         get_hyperparameter_configuration: A function that takes a number n and returns
             n randomly sampled hyperparameter configurations.
-
         run_then_return_val_loss: A function that takes a hyperparameter configuration
             and a resource allocation and returns the validation loss after training
             using the amount of specified resources.
-
         R: The maximum resources allocated to any hyperparameter configuration. Must be
             greater than or equal to 1.0.
-
         eta: A factor controlling the poportion of hyperparameter configurations to cull
             in each iteration of SuccessiveHalving. The optimal value is e (2.718...),
             typical values are 3 or 4. Must be strictly positive.
+        client: A Dask distributed client to execute the hyperparameter search on. If
+            `None`, runs the search locally.
 
     Raises:
         ValueError: if R is less than 1.0, or if eta is not strictly positive.
@@ -69,6 +111,7 @@ class Hyperband:
         run_then_return_val_loss: Callable[[Config, float], float],
         R: float,
         eta: float = 3.0,
+        client: Optional[dask.distributed.Client] = None,
     ) -> None:
         self.get_hyperparameter_configuration = get_hyperparameter_configuration
         self.run_then_return_val_loss = run_then_return_val_loss
@@ -84,49 +127,35 @@ class Hyperband:
         self.s_max = math.floor(math.log(self.R, self.eta))
         self.B = (self.s_max + 1) * self.R
 
-    def step_generator(self) -> Generator[ConfigEvaluation, None, None]:
-        """Return a generator that takes steps of Hyperband.
+        if client is None:
+            cluster = dask.distributed.LocalCluster(
+                processes=False, dashboard_address=None
+            )
+            self.client = dask.distributed.Client(cluster)
+        else:
+            self.client = client
 
-        On each step, it will run one bracket of SuccessiveHalving and yield a named
-        tuple `(config, loss)` containing the best hyperparameter config seen so far, and
-        its associated loss.
+    def run(self) -> ConfigEvaluation:
+        """Run Hyperband.
+
+        Returns:
+            A named tuple `(config, loss)` containing the best hyperparameter config and
+            its associated loss.
 
         """
-        best_config = None
+        futures = []
         for s in range(self.s_max, -1, -1):
             n = math.ceil((self.B * (self.eta ** s)) / (self.R * (s + 1)))
             r = self.R * (self.eta ** -s)
-            T = self.get_hyperparameter_configuration(n)
 
-            for i in range(s + 1):
-                n_i = math.floor(n * (self.eta ** -i))
-                r_i = r * (self.eta ** i)
-                L = [self.run_then_return_val_loss(t, r_i) for t in T]
-                T, losses = _top_k(T, L, max(1, math.floor(n_i / self.eta)))
-
-            if best_config is None or losses[0] < best_config.loss:
-                best_config = ConfigEvaluation(T[0], losses[0])
-
-            yield best_config  # type: ignore
-
-    def run(self) -> ConfigEvaluation:
-        """Run Hyperband and returns the best config.
-
-        Returns:
-            A NamedTuple `(config, loss)` containing the best hyperparameter config and
-            its associated loss.
-
-        Raises:
-            RuntimeError: if no hyperparameter configs were evaluated due to
-            mis-specification of Hyperband's parameters.
-
-        """
-        best_config = None
-        for best_config in self.step_generator():  # noqa: B007
-            pass
-
-        if best_config is None:
-            raise RuntimeError(
-                "No hyperparameter configs were evaluated. Double-check your settings?"
+            futures.append(
+                self.client.submit(
+                    successive_halving,
+                    n,
+                    r,
+                    self.eta,
+                    self.get_hyperparameter_configuration,
+                    self.run_then_return_val_loss,
+                )
             )
-        return best_config
+        return min(self.client.gather(futures), key=lambda x: x.loss)
