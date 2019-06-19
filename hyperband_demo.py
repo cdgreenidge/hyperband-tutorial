@@ -34,13 +34,11 @@ def run_then_return_val_loss(config: Config, resources: float) -> float:
     return loss
 
 
-if __name__ == "__main__":
-
-    resources_used = 0
-    R = 81.0
-    tuner = hyperband.Hyperband(
-        get_hyperparameter_configuration, run_then_return_val_loss, R=R, eta=3.0
-    )
-    best_config = tuner.run()
-    print("Best config: {0}".format(best_config))
-    print("Resources: {0:.2f}".format(resources_used / R))
+resources_used = 0
+R = 81.0
+tuner = hyperband.Hyperband(
+    get_hyperparameter_configuration, run_then_return_val_loss, R=R, eta=3.0
+)
+best_config = tuner.run()
+print("Best config: {0}".format(best_config))
+print("Resources: {0:.2f}".format(resources_used / R))
