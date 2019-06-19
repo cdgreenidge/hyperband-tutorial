@@ -3,7 +3,7 @@ import random
 import typing
 from typing import Iterable
 
-import hyperband
+import hyperband_distributed as hyperband
 
 
 class Config(typing.NamedTuple):
