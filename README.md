@@ -21,7 +21,7 @@ $ python3 hyperband_demo.py
 To run a search on the cluster, change the command to
 
 ```
-# python3 hyperband_demo.py --use_slurm=True
+$ python3 hyperband_demo.py --use_slurm=True
 ```
 
 Note that you will have to submit the command via `sbatch` so that the scheduler and
