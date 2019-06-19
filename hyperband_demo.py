@@ -35,12 +35,11 @@ def run_then_return_val_loss(config: Config, resources: float) -> float:
 
 
 if __name__ == "__main__":
-    use_slurm = False
-    client = None
+    use_slurm = True
     if use_slurm:
         cluster = dask_jobqueue.SLURMCluster(
             cores=4,
-            processes=8,
+            processes=4,
             memory="2GB",
             walltime="0:00:05",
             queue="all",
@@ -48,8 +47,10 @@ if __name__ == "__main__":
             interfacestr="em2",
         )
         cluster.scale(16)  # Can be 10, 100, ...
-        client = dask.distributed.Client(cluster)
         print("Dashboard link: {0}".format(cluster.dashboard_link))
+    else:
+        cluster = dask.distributed.LocalCluster(processes=False, dashboard_address=None)
+    client = dask.distributed.Client(cluster)
 
     tuner = hyperband.Hyperband(
         get_hyperparameter_configuration,
@@ -60,3 +61,4 @@ if __name__ == "__main__":
     )
     best_config = tuner.run()
     print("Best config: {0}".format(best_config))
+    cluster.close()
