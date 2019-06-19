@@ -11,6 +11,9 @@ class Config(typing.NamedTuple):
 
     rho: float
 
+    def __str__(self) -> str:  # noqa: D105
+        return "Config(rho={0:.2f})".format(self.rho)
+
 
 def get_hyperparameter_configuration(n: int) -> Iterable[Config]:
     """Return an iterable of `n` random hyperparameter configurations."""

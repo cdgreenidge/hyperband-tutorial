@@ -23,6 +23,11 @@ class ConfigEvaluation(typing.NamedTuple):
     config: Any  # Using the Config generic causes a metaclass conflict before py37
     loss: float
 
+    def __str__(self) -> str:  # noqa: D105
+        return "ConfigEvaluation(config={0}, loss={1:.2f})".format(
+            self.config, self.loss
+        )
+
 
 def _top_k(
     configs: Sequence[Config], losses: Sequence[float], k: int
