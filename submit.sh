@@ -4,7 +4,4 @@
 #SBATCH -p all
 #SBATCH -t 5
 
-source ~/.bash_profile
-conda deactivate
-conda activate
-python3 hyperband_demo.py
+python3 hyperband_demo.py --use_slurm=True
